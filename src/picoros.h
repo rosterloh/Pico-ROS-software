@@ -31,6 +31,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <string.h>
 
 /* Exported constants --------------------------------------------------------*/
 /** @brief Maximum size for key expressions used in rmw topic names @ingroup picoros */
@@ -60,6 +62,36 @@ typedef struct __attribute__((__packed__)) {
     uint8_t  rmw_gid_size;          /**< Size of RMW GID */
     uint8_t  rmw_gid[RMW_GID_SIZE]; /**< RMW Global Identifier */
 } rmw_attachment_t;
+
+/**
+ * @brief Copy a request's rmw identity (sequence number and GID) into a
+ *        service reply's attachment.
+ *
+ * rmw_zenoh clients match a reply to its pending request by the reply
+ * attachment's sequence number (and writer GID); a server that always
+ * replies with its own bookkeeping values instead of the request's makes a
+ * long-lived client drop every reply after its first. Leaves `reply`
+ * untouched (including `time`, which the caller sets separately) and
+ * returns false unless `req` is non-NULL and `req_len` is exactly
+ * `sizeof(rmw_attachment_t)`.
+ *
+ * @param reply    Attachment to update in place.
+ * @param req      Raw bytes of the request's attachment, or NULL.
+ * @param req_len  Length of `req` in bytes.
+ * @return true if `reply` was updated from `req`, false otherwise.
+ */
+static inline bool picoros_reply_attachment_from_request(rmw_attachment_t *reply,
+                                                          const uint8_t *req, size_t req_len) {
+    if (reply == NULL || req == NULL || req_len != sizeof(rmw_attachment_t)) {
+        return false;
+    }
+    rmw_attachment_t incoming;
+    memcpy(&incoming, req, sizeof(incoming));
+    reply->sequence_number = incoming.sequence_number;
+    reply->rmw_gid_size = incoming.rmw_gid_size;
+    memcpy(reply->rmw_gid, incoming.rmw_gid, RMW_GID_SIZE);
+    return true;
+}
 
 /**
  * @brief RMW topic structure required by rmw_zenoh
