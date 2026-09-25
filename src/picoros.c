@@ -148,6 +148,10 @@ static void sub_data_handler(z_loaned_sample_t *sample, void *ctx) {
         return;
     }
     uint8_t *raw_data = (uint8_t*)z_malloc(raw_data_len);
+    if (raw_data == NULL) {
+        _PR_LOG("Out of memory receiving a sample, dropped\n");
+        return;
+    }
     _z_bytes_to_buf(b, raw_data, raw_data_len);
 
     // Call user callback function if given:
@@ -169,6 +173,12 @@ static void queriable_data_handler(z_loaned_query_t *query, void *arg) {
 
     // get request data
     uint8_t* rx_data = (uint8_t*)z_malloc(rx_data_len);
+    // z_malloc(0) may legitimately return NULL; only a non-empty request is
+    // an allocation failure. Unanswered, the caller times out.
+    if (rx_data == NULL && rx_data_len > 0) {
+        _PR_LOG("Out of memory receiving a service request, not answered\n");
+        return;
+    }
     _z_bytes_to_buf(b, rx_data, rx_data_len);
 
     // process
@@ -260,6 +270,10 @@ static void get_data_handler(z_loaned_reply_t *reply, void *ctx){
         return;
     }
     raw_data = (uint8_t*)z_malloc(raw_data_len);
+    if (raw_data == NULL) {
+        _PR_LOG("Out of memory receiving a service reply, dropped\n");
+        return;
+    }
     _z_bytes_to_buf(payload, raw_data, raw_data_len);
 
     picoros_srv_client_t* client = (picoros_srv_client_t*)ctx;
@@ -510,6 +524,9 @@ picoros_res_t picoros_service_drop(picoros_srv_server_t* serv) {
 picoros_res_t picoros_service_client_init(picoros_srv_client_t * client){
     if (client->_key_buf == NULL){
         client->_key_buf = z_malloc(KEYEXPR_SIZE);
+        if (client->_key_buf == NULL) {
+            return PICOROS_ERROR;
+        }
     }
     // Generate key expressions
     if (client->topic.type != NULL) {
